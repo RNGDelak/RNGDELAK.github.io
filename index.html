@@ -17,9 +17,7 @@ body {
   font-family: sans-serif;
 }
 
-#container {
-  position: relative;
-}
+#container { position: relative; }
 
 #ui {
   position: fixed;
@@ -35,13 +33,9 @@ body {
 }
 
 input[type="range"],
-input[type="number"] {
-  width: 140px;
-}
+input[type="number"] { width: 140px; }
 
-.value {
-  float: right;
-}
+.value { float: right; }
 </style>
 </head>
 <body>
@@ -53,34 +47,25 @@ input[type="number"] {
   <input id="count" type="number" value="5" min="1" max="200"><br><br>
 
   Box size (px):
-  <input id="sizeInput" type="number" step="1" value="200">
+  <input id="sizeInput" type="number" value="200">
   <div id="sizeLabel"></div><br>
 
-  Friction
-  <span class="value" id="frictionVal"></span><br>
+  Friction <span class="value" id="frictionVal"></span><br>
   <input id="friction" type="range" min="0" max="1" step="0.01" value="0"><br>
 
-  Air friction
-  <span class="value" id="frictionAirVal"></span><br>
+  Air friction <span class="value" id="frictionAirVal"></span><br>
   <input id="frictionAir" type="range" min="0" max="0.1" step="0.001" value="0"><br>
 
-  Restitution
-  <span class="value" id="restitutionVal"></span><br>
+  Restitution <span class="value" id="restitutionVal"></span><br>
   <input id="restitution" type="range" min="0" max="1" step="0.01" value="1"><br>
 
-  Density
-  <span class="value" id="densityVal"></span><br>
+  Density <span class="value" id="densityVal"></span><br>
   <input id="density" type="range" min="0.0005" max="0.01" step="0.0005" value="0.002"><br><br>
 
-  <label>
-    <input type="checkbox" id="showVelocity">
-    Show velocity
-  </label><br><br>
+  <label><input type="checkbox" id="showVelocity"> Show velocity</label><br>
+  <label><input type="checkbox" id="drawPath"> Draw path</label><br><br>
 
-  <button onclick="reset()">Reset</button>
-  <button onclick="exportJSON()">Export</button>
-  <input type="file" id="importFile" accept=".json"><br><br>
-
+  <button onclick="reset()">Reset</button><br><br>
   <div id="momentum">Total momentum: 0</div>
 </div>
 
@@ -95,33 +80,39 @@ const {
 const FRAME_SIZE = 600;
 const WALL_THICKNESS = 200;
 const VELOCITY_SCALE = 15;
+let PATH_LIFE = 2000;
 
 let engine, world, render, runner;
 let boxes = [];
 let currentBoxSize = 200;
+let paths = new Map();
 
 const ui = {
-  count: document.getElementById("count"),
-  size: document.getElementById("sizeInput"),
-  friction: document.getElementById("friction"),
-  frictionAir: document.getElementById("frictionAir"),
-  restitution: document.getElementById("restitution"),
-  density: document.getElementById("density"),
-  showVelocity: document.getElementById("showVelocity")
+  count,
+  size: sizeInput,
+  friction,
+  frictionAir,
+  restitution,
+  density,
+  showVelocity,
+  drawPath
 };
 
 const labels = {
-  friction: document.getElementById("frictionVal"),
-  frictionAir: document.getElementById("frictionAirVal"),
-  restitution: document.getElementById("restitutionVal"),
-  density: document.getElementById("densityVal"),
-  size: document.getElementById("sizeLabel")
+  friction: frictionVal,
+  frictionAir: frictionAirVal,
+  restitution: restitutionVal,
+  density: densityVal,
+  size: sizeLabel
 };
+
+function randColor() {
+  return `hsl(${Math.random()*360},80%,60%)`;
+}
 
 function updateSizeLabel() {
   const px = +ui.size.value;
-  const pct = (px / FRAME_SIZE) * 100;
-  labels.size.innerText = `${px.toFixed(1)} px (${pct.toFixed(1)}% frame width)`;
+  labels.size.innerText = `${px}px (${(px/FRAME_SIZE*100).toFixed(1)}%)`;
 }
 
 function updateSizeLive() {
@@ -147,8 +138,7 @@ function applyPhysicsLive() {
 }
 
 Object.values(ui).forEach(el => {
-  if (el.type !== "checkbox")
-    el.addEventListener("input", applyPhysicsLive);
+  if (el.type !== "checkbox") el.addEventListener("input", applyPhysicsLive);
 });
 ui.size.addEventListener("input", updateSizeLive);
 
@@ -160,13 +150,14 @@ function reset() {
     render.canvas.remove();
   }
 
+  paths.clear();
+
   engine = Engine.create();
-  engine.gravity.x = 0;
-  engine.gravity.y = 0;
+  engine.gravity.x = engine.gravity.y = 0;
   world = engine.world;
 
   render = Render.create({
-    element: document.getElementById("container"),
+    element: container,
     engine,
     options: {
       width: FRAME_SIZE,
@@ -180,29 +171,33 @@ function reset() {
 
   const c = FRAME_SIZE / 2;
   Composite.add(world, [
-    Bodies.rectangle(c, -WALL_THICKNESS/2, FRAME_SIZE, WALL_THICKNESS, { isStatic: true, slop: 0 }),
-    Bodies.rectangle(c, FRAME_SIZE + WALL_THICKNESS/2, FRAME_SIZE, WALL_THICKNESS, { isStatic: true, slop: 0 }),
-    Bodies.rectangle(-WALL_THICKNESS/2, c, WALL_THICKNESS, FRAME_SIZE, { isStatic: true, slop: 0 }),
-    Bodies.rectangle(FRAME_SIZE + WALL_THICKNESS/2, c, WALL_THICKNESS, FRAME_SIZE, { isStatic: true, slop: 0 })
+    Bodies.rectangle(c, -WALL_THICKNESS/2, FRAME_SIZE, WALL_THICKNESS, { isStatic:true }),
+    Bodies.rectangle(c, FRAME_SIZE+WALL_THICKNESS/2, FRAME_SIZE, WALL_THICKNESS, { isStatic:true }),
+    Bodies.rectangle(-WALL_THICKNESS/2, c, WALL_THICKNESS, FRAME_SIZE, { isStatic:true }),
+    Bodies.rectangle(FRAME_SIZE+WALL_THICKNESS/2, c, WALL_THICKNESS, FRAME_SIZE, { isStatic:true })
   ]);
 
   boxes = [];
   currentBoxSize = +ui.size.value;
 
-  for (let i = 0; i < +ui.count.value; i++) {
+  for (let i=0;i<+ui.count.value;i++) {
+    const color = randColor();
     const b = Bodies.rectangle(
-      Math.random() * FRAME_SIZE,
-      Math.random() * FRAME_SIZE,
+      Math.random()*FRAME_SIZE,
+      Math.random()*FRAME_SIZE,
       currentBoxSize,
-      currentBoxSize
+      currentBoxSize,
+      { render:{ fillStyle: color } }
     );
+    b.pathColor = color;
 
-    Body.setVelocity(b, {
-      x: (Math.random() - 0.5) * 5,
-      y: (Math.random() - 0.5) * 5
+    Body.setVelocity(b,{
+      x:(Math.random()-0.5)*5,
+      y:(Math.random()-0.5)*5
     });
 
     boxes.push(b);
+    paths.set(b, []);
   }
 
   Composite.add(world, boxes);
@@ -210,88 +205,74 @@ function reset() {
   updateSizeLabel();
 
   const mouse = Mouse.create(render.canvas);
-  Composite.add(world, MouseConstraint.create(engine, {
+  Composite.add(world, MouseConstraint.create(engine,{
     mouse,
-    constraint: { stiffness: 0.2, render: { visible: false } }
+    constraint:{ stiffness:0.2, render:{visible:false} }
   }));
   render.mouse = mouse;
 
-  Events.on(engine, "afterUpdate", () => {
-    for (const b of boxes) {
-      const h = currentBoxSize / 2;
-      b.position.x = Math.max(h, Math.min(FRAME_SIZE - h, b.position.x));
-      b.position.y = Math.max(h, Math.min(FRAME_SIZE - h, b.position.y));
-    }
+  Events.on(engine,"afterUpdate",()=>{
+    if (!ui.drawPath.checked) return;
+    const now = Date.now();
+
+    boxes.forEach(b=>{
+      const arr = paths.get(b);
+      arr.push({ x:b.position.x, y:b.position.y, t:now });
+
+      while (arr.length && now - arr[0].t > PATH_LIFE) {
+        arr.shift();
+      }
+    });
   });
 
-  Events.on(render, "afterRender", () => {
-    if (!ui.showVelocity.checked) return;
+  Events.on(render,"afterRender",()=>{
     const ctx = render.context;
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 2;
+    const now = Date.now();
 
-    boxes.forEach(b => {
-      const v = b.velocity;
-      if (Math.hypot(v.x, v.y) < 0.01) return;
-      ctx.beginPath();
-      ctx.moveTo(b.position.x, b.position.y);
-      ctx.lineTo(
-        b.position.x + v.x * VELOCITY_SCALE,
-        b.position.y + v.y * VELOCITY_SCALE
-      );
-      ctx.stroke();
-    });
+    if (ui.drawPath.checked) {
+      paths.forEach((arr,b)=>{
+        if (arr.length < 2) return;
+        ctx.beginPath();
+        ctx.strokeStyle = b.pathColor;
+        ctx.lineWidth = 2;
+
+        arr.forEach((p,i)=>{
+          ctx.globalAlpha = Math.max(0,1-(now-p.t)/PATH_LIFE);
+          if (i===0) ctx.moveTo(p.x,p.y);
+          else ctx.lineTo(p.x,p.y);
+        });
+
+        ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    if (ui.showVelocity.checked) {
+      ctx.strokeStyle="#fff";
+      ctx.lineWidth=2;
+      boxes.forEach(b=>{
+        ctx.beginPath();
+        ctx.moveTo(b.position.x,b.position.y);
+        ctx.lineTo(
+          b.position.x+b.velocity.x*VELOCITY_SCALE,
+          b.position.y+b.velocity.y*VELOCITY_SCALE
+        );
+        ctx.stroke();
+      });
+    }
   });
 
   Render.run(render);
   Runner.run(runner, engine);
 }
 
-function exportJSON() {
-  const data = {
-    count: +ui.count.value,
-    boxSize: +ui.size.value,
-    physics: {
-      friction: +ui.friction.value,
-      frictionAir: +ui.frictionAir.value,
-      restitution: +ui.restitution.value,
-      density: +ui.density.value
-    }
-  };
-
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "square-packing.json";
-  a.click();
-}
-
-document.getElementById("importFile").addEventListener("change", e => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = () => {
-    const d = JSON.parse(reader.result);
-    ui.count.value = d.count;
-    ui.size.value = d.boxSize;
-    ui.friction.value = d.physics.friction;
-    ui.frictionAir.value = d.physics.frictionAir;
-    ui.restitution.value = d.physics.restitution;
-    ui.density.value = d.physics.density;
-    reset();
-  };
-  reader.readAsText(file);
-});
-
 function updateMomentum() {
-  let px = 0, py = 0;
-  boxes.forEach(b => {
-    px += b.mass * b.velocity.x;
-    py += b.mass * b.velocity.y;
+  let px=0,py=0;
+  boxes.forEach(b=>{
+    px+=b.mass*b.velocity.x;
+    py+=b.mass*b.velocity.y;
   });
-  document.getElementById("momentum").innerText =
-    "Total momentum: " + Math.hypot(px, py).toFixed(4);
+  momentum.innerText="Total momentum: "+Math.hypot(px,py).toFixed(4);
   requestAnimationFrame(updateMomentum);
 }
 
