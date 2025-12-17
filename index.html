@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Interactive Square Packing</title>
+<title>Square Packing</title>
 
 <style>
 body {
@@ -51,16 +51,16 @@ input[type="number"] { width: 140px; }
   <div id="sizeLabel"></div><br>
 
   Friction <span class="value" id="frictionVal"></span><br>
-  <input id="friction" type="range" min="0" max="1" step="0.01" value="0"><br>
+  <input id="friction" type="range" min="-1" max="1" step="0.01" value="0"><br>
 
   Air friction <span class="value" id="frictionAirVal"></span><br>
-  <input id="frictionAir" type="range" min="0" max="0.1" step="0.001" value="0"><br>
+  <input id="frictionAir" type="range" min="-0.1" max="0.1" step="0.001" value="0"><br>
 
   Restitution <span class="value" id="restitutionVal"></span><br>
-  <input id="restitution" type="range" min="0" max="1" step="0.01" value="1"><br>
+  <input id="restitution" type="range" min="-2" max="2" step="0.01" value="1"><br>
 
   Density <span class="value" id="densityVal"></span><br>
-  <input id="density" type="range" min="0.0005" max="0.01" step="0.0005" value="0.002"><br><br>
+  <input id="density" type="range" min="-1" max="1" step="0.0005" value="0.002"><br><br>
 
   <label><input type="checkbox" id="showVelocity"> Show velocity</label><br>
   <label><input type="checkbox" id="drawPath"> Draw path</label><br><br>
@@ -78,7 +78,7 @@ const {
 } = Matter;
 
 const FRAME_SIZE = 600;
-const WALL_THICKNESS = 200;
+const WALL_THICKNESS = 2000;
 const VELOCITY_SCALE = 15;
 let PATH_LIFE = 2000;
 
