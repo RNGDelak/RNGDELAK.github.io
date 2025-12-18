@@ -63,7 +63,8 @@ input[type="number"] { width: 140px; }
   <input id="density" type="range" min="-1" max="1" step="0.0005" value="0.002"><br><br>
 
   <label><input type="checkbox" id="showVelocity"> Show velocity</label><br>
-  <label><input type="checkbox" id="drawPath"> Draw path</label><br><br>
+  <label><input type="checkbox" id="drawPath"> Draw path</label><br>
+  <label><input type="checkbox" id="showPressure"> Show pressure</label><br><br>
 
   <button onclick="reset()">Reset</button><br><br>
   <div id="momentum">Total momentum: 0</div>
@@ -87,6 +88,11 @@ let boxes = [];
 let currentBoxSize = 200;
 let paths = new Map();
 
+/* === PRESSURE SYSTEM === */
+const pressureMap = new Map();
+const PRESSURE_DECAY = 0.9;
+const PRESSURE_SCALE = 0.002;
+
 const ui = {
   count,
   size: sizeInput,
@@ -95,7 +101,8 @@ const ui = {
   restitution,
   density,
   showVelocity,
-  drawPath
+  drawPath,
+  showPressure
 };
 
 const labels = {
@@ -108,6 +115,14 @@ const labels = {
 
 function randColor() {
   return `hsl(${Math.random()*360},80%,60%)`;
+}
+
+function pressureColor(p) {
+  const t = Math.min(1, p * PRESSURE_SCALE);
+  const r = 255;
+  const g = Math.floor(255 * (1 - t));
+  const b = Math.floor(255 * (1 - t));
+  return `rgb(${r},${g},${b})`;
 }
 
 function updateSizeLabel() {
@@ -151,6 +166,7 @@ function reset() {
   }
 
   paths.clear();
+  pressureMap.clear();
 
   engine = Engine.create();
   engine.gravity.x = engine.gravity.y = 0;
@@ -189,7 +205,8 @@ function reset() {
       currentBoxSize,
       { render:{ fillStyle: color } }
     );
-    b.pathColor = color;
+
+    b.baseColor = color;
 
     Body.setVelocity(b,{
       x:(Math.random()-0.5)*5,
@@ -198,6 +215,7 @@ function reset() {
 
     boxes.push(b);
     paths.set(b, []);
+    pressureMap.set(b, 0);
   }
 
   Composite.add(world, boxes);
@@ -211,17 +229,32 @@ function reset() {
   }));
   render.mouse = mouse;
 
+  Events.on(engine,"collisionActive",event=>{
+    event.pairs.forEach(pair=>{
+      const imp =
+        Math.abs(pair.collision.penetration.x) +
+        Math.abs(pair.collision.penetration.y);
+
+      if (pressureMap.has(pair.bodyA))
+        pressureMap.set(pair.bodyA, pressureMap.get(pair.bodyA)+imp);
+
+      if (pressureMap.has(pair.bodyB))
+        pressureMap.set(pair.bodyB, pressureMap.get(pair.bodyB)+imp);
+    });
+  });
+
   Events.on(engine,"afterUpdate",()=>{
+    boxes.forEach(b=>{
+      pressureMap.set(b, pressureMap.get(b)*PRESSURE_DECAY);
+    });
+
     if (!ui.drawPath.checked) return;
     const now = Date.now();
 
     boxes.forEach(b=>{
       const arr = paths.get(b);
       arr.push({ x:b.position.x, y:b.position.y, t:now });
-
-      while (arr.length && now - arr[0].t > PATH_LIFE) {
-        arr.shift();
-      }
+      while (arr.length && now-arr[0].t>PATH_LIFE) arr.shift();
     });
   });
 
@@ -229,17 +262,26 @@ function reset() {
     const ctx = render.context;
     const now = Date.now();
 
+    if (ui.showPressure.checked) {
+      boxes.forEach(b=>{
+        b.render.fillStyle = pressureColor(pressureMap.get(b));
+      });
+    } else {
+      boxes.forEach(b=>{
+        b.render.fillStyle = b.baseColor;
+      });
+    }
+
     if (ui.drawPath.checked) {
       paths.forEach((arr,b)=>{
-        if (arr.length < 2) return;
+        if (arr.length<2) return;
         ctx.beginPath();
-        ctx.strokeStyle = b.pathColor;
+        ctx.strokeStyle = b.baseColor;
         ctx.lineWidth = 2;
 
         arr.forEach((p,i)=>{
           ctx.globalAlpha = Math.max(0,1-(now-p.t)/PATH_LIFE);
-          if (i===0) ctx.moveTo(p.x,p.y);
-          else ctx.lineTo(p.x,p.y);
+          i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y);
         });
 
         ctx.stroke();
