@@ -17,19 +17,18 @@ body {
   font-family: sans-serif;
 }
 
-  #container {
-    width: 100vmin;
-    height: 100vmin;
-    max-width: 600px;
-    max-height: 600px;
-  }
+#container {
+  width: 100vmin;
+  height: 100vmin;
+  max-width: 600px;
+  max-height: 600px;
+}
 
-  canvas {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-
+canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
 
 #ui {
   position: fixed;
@@ -49,29 +48,26 @@ input[type="number"] { width: 140px; }
 
 .value { float: right; }
 
-
-  /* Mobile scaling */
-  @media (max-width: 768px) {
-    #ui {
-      transform: scale(0.7);
-      transform-origin: top left;
-
-      width: 180px;
-      padding: 8px;
-      font-size: 12px;
-    }
-
-    input[type="range"],
-    input[type="number"] {
-      width: 110px;
-    }
-
-    button {
-      font-size: 12px;
-      padding: 4px 6px;
-    }
+/* Mobile scaling */
+@media (max-width: 768px) {
+  #ui {
+    transform: scale(0.7);
+    transform-origin: top left;
+    width: 180px;
+    padding: 8px;
+    font-size: 12px;
   }
 
+  input[type="range"],
+  input[type="number"] {
+    width: 110px;
+  }
+
+  button {
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+}
 </style>
 </head>
 <body>
@@ -96,7 +92,10 @@ input[type="number"] { width: 140px; }
   <input id="restitution" type="range" min="-2" max="2" step="0.01" value="1"><br>
 
   Density <span class="value" id="densityVal"></span><br>
-  <input id="density" type="range" min="-1" max="1" step="0.00001" value="0.002"><br><br>
+  <input id="density" type="range" min="-1" max="1" step="0.0001" value="0.005"><br><br>
+
+  Speed <span class="value" id="speedVal"></span><br>
+  <input id="speed" type="range" min="0" max="2" step="0.01" value="1"><br><br>
 
   <label><input type="checkbox" id="showVelocity"> Show velocity</label><br>
   <label><input type="checkbox" id="drawPath"> Draw path</label><br>
@@ -136,6 +135,7 @@ const ui = {
   frictionAir,
   restitution,
   density,
+  speed,
   showVelocity,
   drawPath,
   showPressure
@@ -146,7 +146,8 @@ const labels = {
   frictionAir: frictionAirVal,
   restitution: restitutionVal,
   density: densityVal,
-  size: sizeLabel
+  size: sizeLabel,
+  speed: speedVal
 };
 
 function randColor() {
@@ -166,18 +167,15 @@ function updateSizeLabel() {
   labels.size.innerText = `${px}px (${(px/FRAME_SIZE*100).toFixed(1)}%)`;
 }
 
-  function updateSizeLive() {
-    const newSize = Number(ui.size.value);
-
-    if (!Number.isNaN(newSize) && newSize > 0) {
-      const scale = newSize / currentBoxSize;
-      boxes.forEach(b => Body.scale(b, scale, scale));
-      currentBoxSize = newSize;
-    }
-
-    updateSizeLabel();
+function updateSizeLive() {
+  const newSize = Number(ui.size.value);
+  if (!Number.isNaN(newSize) && newSize > 0) {
+    const scale = newSize / currentBoxSize;
+    boxes.forEach(b => Body.scale(b, scale, scale));
+    currentBoxSize = newSize;
   }
-
+  updateSizeLabel();
+}
 
 function applyPhysicsLive() {
   boxes.forEach(b => {
@@ -187,10 +185,13 @@ function applyPhysicsLive() {
     Body.setDensity(b, +ui.density.value);
   });
 
+  engine.timing.timeScale = +ui.speed.value;
+
   labels.friction.innerText = ui.friction.value;
   labels.frictionAir.innerText = ui.frictionAir.value;
   labels.restitution.innerText = ui.restitution.value;
   labels.density.innerText = ui.density.value;
+  labels.speed.innerText = ui.speed.value + "×";
 }
 
 Object.values(ui).forEach(el => {
@@ -211,6 +212,8 @@ function reset() {
 
   engine = Engine.create();
   engine.gravity.x = engine.gravity.y = 0;
+  engine.timing.timeScale = +ui.speed.value;
+
   world = engine.world;
 
   render = Render.create({
