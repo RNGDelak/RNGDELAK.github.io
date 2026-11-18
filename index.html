@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RNGDelak</title>
+<style>
+  body { font-family: sans-serif; max-width: 760px; margin: 0 auto; padding: 16px; }
+  input, textarea, button { font: inherit; padding: 6px; margin: 2px 0; }
+  input, textarea { width: 100%; box-sizing: border-box; }
+  textarea { min-height: 140px; }
+  .post { border: 1px solid #888; padding: 12px; margin: 16px 0; }
+  .meta { font-size: 0.85em; opacity: 0.7; }
+  .content { white-space: pre-wrap; margin: 8px 0; }
+  .comment { border-left: 3px solid #888; padding-left: 8px; margin: 8px 0; }
+  .err { color: #c00; }
+  details { font-size: 0.9em; margin-top: 6px; }
+</style>
+</head>
+<body>
+<h1>RNGDelak</h1>
+
+<div id="login" hidden>
+  <input id="email" type="email" placeholder="Email">
+  <input id="pass" type="password" placeholder="Password">
+  <button id="loginBtn">Login</button>
+  <div id="loginErr" class="err"></div>
+</div>
+
+<div id="app" hidden>
+  <button id="logoutBtn">Logout</button>
+  <h3 id="formTitle">New post</h3>
+  <input id="title" placeholder="Title">
+  <textarea id="content" placeholder="Content (HTML allowed, e.g. <b>bold</b>)"></textarea>
+  <button id="saveBtn">Post</button>
+  <button id="cancelBtn" hidden>Cancel edit</button>
+  <div id="posts"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js";
+import { getDatabase, ref, push, update, remove, onValue }
+  from "https://www.gstatic.com/firebasejs/13.4.0/firebase-database.js";
+
+// ===== PASTE YOUR FIREBASE CONFIG HERE =====
+const firebaseConfig = {
+  apiKey: "AIzaSyCmg9pTQgH6u1rdJNpNcubWU45UinsBh_A",
+  authDomain: "rngdelak-s-diary.firebaseapp.com",
+  databaseURL: "https://rngdelak-s-diary-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "rngdelak-s-diary",
+  storageBucket: "rngdelak-s-diary.firebasestorage.app",
+  messagingSenderId: "811949407360",
+  appId: "1:811949407360:web:61f0ca9bc0bcae50eaba65"
+};
+// ===========================================
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+const $ = id => document.getElementById(id);
+
+const p2 = n => String(n).padStart(2, "0");
+const fmt = t => {
+  const d = new Date(t);
+  return `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())} ${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`;
+};
+const weekday = t => new Date(t).toLocaleDateString("en-GB", { weekday: "long" });
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+let posts = {};
+let editingId = null;
+let unsub = null;
+
+// ---------- Auth ----------
+$("loginBtn").onclick = async () => {
+  $("loginErr").textContent = "";
+  try {
+    await signInWithEmailAndPassword(auth, $("email").value, $("pass").value);
+  } catch (e) {
+    $("loginErr").textContent = "Login failed: " + e.code;
+  }
+};
+$("logoutBtn").onclick = () => signOut(auth);
+
+onAuthStateChanged(auth, user => {
+  $("login").hidden = !!user;
+  $("app").hidden = !user;
+  if (unsub) { unsub(); unsub = null; }
+  if (user) {
+    unsub = onValue(ref(db, "posts"), snap => {
+      posts = snap.val() || {};
+      render();
+    });
+  } else {
+    posts = {};
+    $("posts").innerHTML = "";
+  }
+});
+
+// ---------- Create / edit ----------
+function resetForm() {
+  editingId = null;
+  $("title").value = "";
+  $("content").value = "";
+  $("formTitle").textContent = "New post";
+  $("saveBtn").textContent = "Post";
+  $("cancelBtn").hidden = true;
+}
+$("cancelBtn").onclick = resetForm;
+
+$("saveBtn").onclick = async () => {
+  const title = $("title").value.trim();
+  const content = $("content").value;
+  if (!title && !content.trim()) return;
+  const now = Date.now();
+
+  if (!editingId) {
+    await push(ref(db, "posts"), { title, content, createdAt: now });
+  } else {
+    const old = posts[editingId];
+    const changed = [];
+    if (old.title !== title) changed.push("title");
+    if (old.content !== content) changed.push("content");
+    if (changed.length) {
+      // automatic change record: what changed, when, and the previous values
+      await push(ref(db, `posts/${editingId}/history`), {
+        at: now, changed: changed.join(" + "),
+        oldTitle: old.title || "", oldContent: old.content || ""
+      });
+      await update(ref(db, `posts/${editingId}`), { title, content, updatedAt: now });
+    }
+  }
+  resetForm();
+};
+
+// ---------- Render ----------
+function render() {
+  const ids = Object.keys(posts).sort((a, b) => posts[b].createdAt - posts[a].createdAt);
+  $("posts").innerHTML = ids.map(id => {
+    const p = posts[id];
+    const comments = Object.entries(p.comments || {}).sort((a, b) => a[1].at - b[1].at);
+    const history = Object.values(p.history || {}).sort((a, b) => a.at - b.at);
+    return `
+    <div class="post" data-id="${id}">
+      <h2>${p.title || ""}</h2>
+      <div class="meta">${weekday(p.createdAt)}, created ${fmt(p.createdAt)}${p.updatedAt ? ` · last edited ${fmt(p.updatedAt)}` : ""}</div>
+      <div class="content">${p.content || ""}</div>
+      <button data-act="edit">Edit</button>
+      <button data-act="delete">Delete</button>
+      ${history.length ? `<details><summary>Change log (${history.length})</summary>
+        ${history.map(h => `<div class="meta">${fmt(h.at)}: ${esc(h.changed)} changed
+          <details><summary>previous version</summary>
+          <b>${esc(h.oldTitle)}</b><pre style="white-space:pre-wrap">${esc(h.oldContent)}</pre></details></div>`).join("")}
+      </details>` : ""}
+      <h4>Comments</h4>
+      ${comments.map(([cid, c]) => `<div class="comment"><div class="meta">${fmt(c.at)}</div>
+        <div class="content">${c.text}</div>
+        <button data-act="delcomment" data-cid="${cid}">x</button></div>`).join("")}
+      <textarea class="ctext" placeholder="What do you think about this now?"></textarea>
+      <button data-act="comment">Add comment</button>
+    </div>`;
+  }).join("");
+}
+
+// ---------- Actions (event delegation) ----------
+$("posts").onclick = async e => {
+  const act = e.target.dataset.act;
+  if (!act) return;
+  const box = e.target.closest(".post");
+  const id = box.dataset.id;
+
+  if (act === "edit") {
+    editingId = id;
+    $("title").value = posts[id].title || "";
+    $("content").value = posts[id].content || "";
+    $("formTitle").textContent = "Editing post";
+    $("saveBtn").textContent = "Save changes";
+    $("cancelBtn").hidden = false;
+    window.scrollTo(0, 0);
+  } else if (act === "delete") {
+    if (confirm("Delete this post permanently?")) await remove(ref(db, `posts/${id}`));
+  } else if (act === "comment") {
+    const ta = box.querySelector(".ctext");
+    if (!ta.value.trim()) return;
+    await push(ref(db, `posts/${id}/comments`), { text: ta.value, at: Date.now() });
+  } else if (act === "delcomment") {
+    if (confirm("Delete this comment?")) await remove(ref(db, `posts/${id}/comments/${e.target.dataset.cid}`));
+  }
+};
+</script>
+</body>
+</html>
