@@ -5,72 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RNGDelak</title>
 <style>
-  :root {
-    color-scheme: light dark;
-    --bg: #f6f5f1; --card: #ffffff; --text: #26241f; --muted: #7b776d;
-    --line: #e2dfd6; --accent: #3b6ea5; --tint: #f1efe8; --danger: #b3382c;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #161614; --card: #201f1c; --text: #e8e5dc; --muted: #928e82;
-      --line: #35332e; --accent: #7fb0e3; --tint: #2a2925; --danger: #e5776b;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 0 16px 80px; background: var(--bg); color: var(--text);
-    font: 17px/1.65 Georgia, "Times New Roman", serif;
-  }
-  main { max-width: 720px; margin: 0 auto; }
-  header { display: flex; align-items: center; justify-content: space-between; padding: 24px 0 8px; }
-  h1 { margin: 0; font-size: 1.6em; letter-spacing: 0.04em; }
-  h1, button, input, textarea, .meta { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { font-family: sans-serif; max-width: 760px; margin: 0 auto; padding: 16px; }
+  input, textarea, button { font: inherit; padding: 6px; margin: 2px 0; }
+  input, textarea { width: 100%; box-sizing: border-box; }
+  textarea { min-height: 140px; }
+  .post { border: 1px solid #888; padding: 12px; margin: 16px 0; }
+  .meta { font-size: 0.85em; opacity: 0.7; }
+  .content { white-space: pre-wrap; margin: 8px 0; }
+  .comment { border-left: 3px solid #888; padding-left: 8px; margin: 8px 0; }
+  .err { color: #c00; }
+  details { font-size: 0.9em; margin-top: 6px; }
+  details pre { white-space: pre-wrap; }
 
-  button {
-    font-size: 0.85rem; padding: 6px 12px; border-radius: 8px; cursor: pointer;
-    border: 1px solid var(--line); background: var(--card); color: var(--text);
-  }
-  button:hover { border-color: var(--accent); color: var(--accent); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.primary:hover { color: #fff; opacity: 0.9; }
-  button.danger:hover { border-color: var(--danger); color: var(--danger); }
-  body.editing #modeBtn { background: var(--accent); border-color: var(--accent); color: #fff; }
-
-  input, textarea {
-    width: 100%; padding: 10px 12px; margin: 4px 0; font-size: 1rem; border-radius: 8px;
-    border: 1px solid var(--line); background: var(--card); color: var(--text);
-  }
-  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  textarea { min-height: 160px; resize: vertical; line-height: 1.5; }
-
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; margin: 18px 0; }
-  .err { color: var(--danger); font-family: system-ui, sans-serif; font-size: 0.9rem; }
-  #login { max-width: 360px; margin: 60px auto; }
-
-  /* edit-only stuff is hidden while reading */
+  /* layout helpers for edit mode */
+  header { display: flex; align-items: center; justify-content: space-between; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
   .edit-only { display: none; }
   body.editing .edit-only { display: block; }
   body.editing .row.edit-only { display: flex; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-
-  #editor { border-color: var(--accent); }
-  #editor h3 { margin: 0 0 8px; font-family: system-ui, sans-serif; font-size: 1rem; }
-
-  .post h2 { margin: 0 0 2px; font-size: 1.45em; line-height: 1.3; }
-  .post.active { outline: 2px solid var(--accent); }
-  .meta { font-size: 0.8rem; color: var(--muted); }
-  .content { white-space: pre-wrap; margin: 14px 0; overflow-wrap: anywhere; }
-  .content img { max-width: 100%; height: auto; }
-
-  .comments { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 4px; }
-  .comment { background: var(--tint); border-left: 3px solid var(--accent); border-radius: 6px; padding: 8px 14px; margin: 12px 0; }
-  .comment .content { margin: 6px 0; font-size: 0.95em; }
-  .comment .row { margin-top: 0; }
-
-  details { font-size: 0.85rem; margin-top: 10px; color: var(--muted); font-family: system-ui, sans-serif; }
-  details pre { white-space: pre-wrap; font: inherit; background: var(--tint); padding: 8px; border-radius: 6px; }
-  summary { cursor: pointer; }
-  .empty { text-align: center; color: var(--muted); font-family: system-ui, sans-serif; }
+  #editor { border: 1px solid #888; padding: 12px; margin: 16px 0; }
+  .post.active { outline: 2px solid #888; }
+  .empty { opacity: 0.7; }
 </style>
 </head>
 <body>
